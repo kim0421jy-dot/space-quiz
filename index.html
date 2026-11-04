@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Space Quiz</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0b1020;
+      --card: #171d31;
+      --text: #f5f7ff;
+      --muted: #b9c1e2;
+      --primary: #6ea8ff;
+      --primary-strong: #4f8ef7;
+      --correct: #2aa56d;
+      --wrong: #dc4f4f;
+      --border: #2a3154;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(circle at top, #1b2550 0%, var(--bg) 45%);
+      color: var(--text);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+
+    .app {
+      width: min(860px, 100%);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    h1 { margin: 0 0 8px; font-size: 1.8rem; }
+    h2 { margin: 0 0 8px; font-size: 1.3rem; }
+    p { margin: 0 0 12px; color: var(--muted); line-height: 1.45; }
+    .hidden { display: none; }
+
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .choices { display: grid; gap: 10px; margin: 16px 0 10px; }
+
+    button {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #10152a;
+      color: var(--text);
+      padding: 12px 14px;
+      cursor: pointer;
+      font-size: 1rem;
+      text-align: left;
+    }
+
+    button:hover { border-color: var(--primary); }
+    button.primary {
+      background: linear-gradient(180deg, var(--primary), var(--primary-strong));
+      color: #06122f;
+      font-weight: 700;
+      border-color: transparent;
+      text-align: center;
+      min-width: 130px;
+    }
+
+    button.correct {
+      background: rgba(42, 165, 109, 0.2);
+      border-color: var(--correct);
+    }
+
+    button.wrong {
+      background: rgba(220, 79, 79, 0.2);
+      border-color: var(--wrong);
+    }
+
+    button:disabled { cursor: default; opacity: 0.95; }
+
+    .mode-card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      margin: 16px 0;
+      background: #11182e;
+    }
+
+    .mode-card label { margin-right: 16px; cursor: pointer; }
+    .meta { color: var(--muted); font-size: 0.95rem; margin: 8px 0 14px; }
+    .shortcut-note { color: #cdd6ff; font-size: 0.95rem; }
+
+    .review-list { display: grid; gap: 12px; margin-top: 16px; }
+    .review-item {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      background: #10162a;
+    }
+    .review-item strong { color: #ffffff; }
+    .review-item .bad { color: #ffb3b3; }
+    .review-item .good { color: #a8f0c9; }
+    .review-item .exp { color: #e1e6ff; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section id="start-screen">
+      <h1>🚀 Space Quiz</h1>
+      <p>총 5문항 퀴즈입니다. 시작 전에 문제 순서를 선택할 수 있습니다.</p>
+
+      <div class="mode-card">
+        <h2>문제 순서 모드</h2>
+        <p>기본은 등록된 순서대로, 랜덤은 매번 섞어서 출제됩니다.</p>
+        <div class="row">
+          <label><input type="radio" name="order-mode" value="default" checked /> 기본 순서</label>
+          <label><input type="radio" name="order-mode" value="random" /> 랜덤 순서</label>
+        </div>
+      </div>
+
+      <button id="start-btn" class="primary">퀴즈 시작</button>
+    </section>
+
+    <section id="quiz-screen" class="hidden">
+      <div id="progress" class="meta"></div>
+      <h2 id="question"></h2>
+      <div id="choices" class="choices"></div>
+      <p class="shortcut-note">숫자 단축키: <strong>1 ~ 4</strong></p>
+      <button id="next-btn" class="primary hidden">다음 문제</button>
+    </section>
+
+    <section id="result-screen" class="hidden">
+      <h2>결과</h2>
+      <p id="score-line"></p>
+      <div id="wrong-review"></div>
+      <div style="margin-top:16px;">
+        <button id="restart-btn" class="primary">다시 풀기</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const quizData = [
+      {
+        question: "지구에서 가장 가까운 항성은?",
+        options: ["시리우스", "태양", "베가", "폴라리스"],
+        answer: 1,
+        explanation: "지구에서 가장 가까운 항성은 태양입니다."
+      },
+      {
+        question: "태양계에서 가장 큰 행성은?",
+        options: ["지구", "토성", "목성", "화성"],
+        answer: 2,
+        explanation: "태양계 최대 행성은 목성입니다."
+      },
+      {
+        question: "달이 지구를 한 바퀴 도는 평균 기간은?",
+        options: ["약 7일", "약 14일", "약 27일", "약 40일"],
+        answer: 2,
+        explanation: "달의 공전 주기는 약 27.3일입니다."
+      },
+      {
+        question: "붉은 행성으로 불리는 행성은?",
+        options: ["금성", "수성", "화성", "천왕성"],
+        answer: 2,
+        explanation: "화성은 표면의 산화철 때문에 붉게 보입니다."
+      },
+      {
+        question: "국제우주정거장을 영어로 줄여 쓰면?",
+        options: ["ISS", "IRS", "IUS", "SOS"],
+        answer: 0,
+        explanation: "국제우주정거장은 International Space Station, 즉 ISS입니다."
+      }
+    ];
+
+    const startScreen = document.getElementById("start-screen");
+    const quizScreen = document.getElementById("quiz-screen");
+    const resultScreen = document.getElementById("result-screen");
+
+    const startBtn = document.getElementById("start-btn");
+    const nextBtn = document.getElementById("next-btn");
+    const restartBtn = document.getElementById("restart-btn");
+
+    const progressEl = document.getElementById("progress");
+    const questionEl = document.getElementById("question");
+    const choicesEl = document.getElementById("choices");
+    const scoreLineEl = document.getElementById("score-line");
+    const wrongReviewEl = document.getElementById("wrong-review");
+
+    let orderedIndexes = [];
+    let currentIdx = 0;
+    let score = 0;
+    let selectedIndex = null;
+    let answered = false;
+    const userAnswers = [];
+
+    function shuffleArray(arr) {
+      for (let i = arr.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function getOrderMode() {
+      const checked = document.querySelector('input[name="order-mode"]:checked');
+      return checked ? checked.value : "default";
+    }
+
+    function initializeQuiz() {
+      orderedIndexes = Array.from({ length: quizData.length }, (_, i) => i);
+      if (getOrderMode() === "random") {
+        shuffleArray(orderedIndexes);
+      }
+
+      currentIdx = 0;
+      score = 0;
+      selectedIndex = null;
+      answered = false;
+      userAnswers.length = 0;
+
+      startScreen.classList.add("hidden");
+      resultScreen.classList.add("hidden");
+      quizScreen.classList.remove("hidden");
+
+      renderQuestion();
+    }
+
+    function getCurrentQuestionData() {
+      const questionDataIndex = orderedIndexes[currentIdx];
+      return quizData[questionDataIndex];
+    }
+
+    function renderQuestion() {
+      const q = getCurrentQuestionData();
+      progressEl.textContent = `${currentIdx + 1} / ${quizData.length}`;
+      questionEl.textContent = q.question;
+      nextBtn.classList.add("hidden");
+      choicesEl.innerHTML = "";
+      answered = false;
+      selectedIndex = null;
+
+      q.options.forEach((option, index) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.dataset.index = String(index);
+        btn.textContent = `${index + 1}. ${option}`;
+        btn.addEventListener("click", () => selectAnswer(index));
+        choicesEl.appendChild(btn);
+      });
+    }
+
+    function selectAnswer(index) {
+      if (answered) return;
+      const q = getCurrentQuestionData();
+      answered = true;
+      selectedIndex = index;
+      const isCorrect = selectedIndex === q.answer;
+      if (isCorrect) score += 1;
+
+      userAnswers.push({
+        questionOrder: currentIdx,
+        questionDataIndex: orderedIndexes[currentIdx],
+        selectedIndex,
+        correctIndex: q.answer,
+        isCorrect
+      });
+
+      const buttons = choicesEl.querySelectorAll("button");
+      buttons.forEach((button, btnIndex) => {
+        button.disabled = true;
+        if (btnIndex === q.answer) button.classList.add("correct");
+        if (btnIndex === selectedIndex && selectedIndex !== q.answer) {
+          button.classList.add("wrong");
+        }
+      });
+
+      nextBtn.classList.remove("hidden");
+      nextBtn.textContent = currentIdx === quizData.length - 1 ? "결과 보기" : "다음 문제";
+    }
+
+    function moveNext() {
+      if (!answered) return;
+      if (currentIdx < quizData.length - 1) {
+        currentIdx += 1;
+        renderQuestion();
+      } else {
+        renderResult();
+      }
+    }
+
+    function renderResult() {
+      quizScreen.classList.add("hidden");
+      resultScreen.classList.remove("hidden");
+      scoreLineEl.textContent = `총 ${quizData.length}문항 중 ${score}문항 정답`;
+
+      const wrongAnswers = userAnswers.filter((a) => !a.isCorrect);
+
+      if (wrongAnswers.length === 0) {
+        wrongReviewEl.innerHTML = "<p>🎉 전부 정답입니다! 오답 복습 항목이 없습니다.</p>";
+        return;
+      }
+
+      const items = wrongAnswers
+        .map((answer) => {
+          const q = quizData[answer.questionDataIndex];
+          return `
+            <article class="review-item">
+              <p><strong>문제:</strong> ${q.question}</p>
+              <p class="bad"><strong>내 답:</strong> ${q.options[answer.selectedIndex]}</p>
+              <p class="good"><strong>정답:</strong> ${q.options[q.answer]}</p>
+              <p class="exp"><strong>해설:</strong> ${q.explanation}</p>
+            </article>
+          `;
+        })
+        .join("");
+
+      wrongReviewEl.innerHTML = `
+        <h3>오답 복습 (${wrongAnswers.length}문항)</h3>
+        <div class="review-list">${items}</div>
+      `;
+    }
+
+    function onKeydown(event) {
+      if (quizScreen.classList.contains("hidden") || answered) return;
+      const key = event.key;
+      const keyToIndex = {
+        "1": 0,
+        "2": 1,
+        "3": 2,
+        "4": 3
+      };
+      if (Object.prototype.hasOwnProperty.call(keyToIndex, key)) {
+        selectAnswer(keyToIndex[key]);
+      }
+    }
+
+    startBtn.addEventListener("click", initializeQuiz);
+    nextBtn.addEventListener("click", moveNext);
+    restartBtn.addEventListener("click", () => {
+      resultScreen.classList.add("hidden");
+      startScreen.classList.remove("hidden");
+    });
+    window.addEventListener("keydown", onKeydown);
+  </script>
+</body>
+</html>
